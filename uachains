@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+import sys
+import os
+import subprocess
+import random
+import argparse
+import shutil
+
+class UAChains:
+    def __init__(self):
+        # Previous user agents list remains the same...
+        self.user_agents = {
+            1: [  # Windows/Chrome
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
+            ],
+            2: [  # Windows/Firefox
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:119.0) Gecko/20100101 Firefox/119.0"
+            ],
+            3: [  # MacOS/Safari
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15"
+            ],
+            4: [  # Mobile/iOS
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.1 Mobile/15E148 Safari/604.1",
+                "Mozilla/5.0 (iPad; CPU OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1"
+            ],
+            5: [  # Mobile/Android
+                "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36",
+                "Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.6045.163 Mobile Safari/537.36",
+                "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36"
+            ],
+            6: [  # Bots/Crawlers
+                "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+                "Mozilla/5.0 (compatible; Bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+                "Mozilla/5.0 (compatible; DuckDuckBot-Https/1.1; https://duckduckgo.com/duckduckbot)"
+            ],
+            7: [  # Linux/Firefox
+                "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
+                "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
+                "Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:119.0) Gecko/20100101 Firefox/119.0"
+            ],
+            8: [  # Edge
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.85",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91"
+            ],
+            9: [  # Opera
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 OPR/105.0.0.0",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0"
+            ],
+            10: [  # Smart TV/Console
+                "Mozilla/5.0 (PlayStation; PlayStation 5/2.0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15",
+                "Mozilla/5.0 (SMART-TV; LINUX; Tizen 7.0) AppleWebKit/537.36 (KHTML, like Gecko) Version/7.0 TV Safari/537.36",
+                "Mozilla/5.0 (Nintendo Switch; WifiWebAuthApplet) AppleWebKit/601.6 (KHTML, like Gecko) NF/4.0.0.5.10 NintendoBrowser/5.1.0.13343"
+            ]
+        }
+
+
+        # Commands that need User-Agent modification
+        self.wrapped_commands = {
+            'curl': lambda ua, args: ['curl', '-A', ua] + args,
+            'wget': lambda ua, args: ['wget', '--user-agent', ua] + args,
+            'httpie': lambda ua, args: ['http', 'User-Agent:' + ua] + args,
+            'chromium': lambda ua, args: ['chromium', '--user-agent=' + ua] + args,
+            'firefox': lambda ua, args: ['firefox', '-user-agent', ua] + args,
+            'requests': lambda ua, args: self.modify_python_command(ua, args),
+            'python': lambda ua, args: self.modify_python_command(ua, args),
+            'python3': lambda ua, args: self.modify_python_command(ua, args)
+        }
+
+    def modify_python_command(self, ua, args):
+        """Modify Python commands to inject User-Agent"""
+        # Create a wrapper script that modifies requests
+        wrapper_script = f'''
+import sys
+import os
+import runpy
+
+# Patch requests library
+try:
+    import requests
+    original_request = requests.Session.request
+    def patched_request(self, method, url, **kwargs):
+        headers = kwargs.get('headers', {{}})
+        if 'User-Agent' not in headers:
+            headers['User-Agent'] = "{ua}"
+        kwargs['headers'] = headers
+        return original_request(self, method, url, **kwargs)
+    requests.Session.request = patched_request
+except ImportError:
+    pass
+
+# Patch urllib
+try:
+    import urllib.request
+    original_urlopen = urllib.request.urlopen
+    def patched_urlopen(url, *args, **kwargs):
+        if isinstance(url, str):
+            req = urllib.request.Request(url)
+        else:
+            req = url
+        req.add_header('User-Agent', '{ua}')
+        return original_urlopen(req, *args, **kwargs)
+    urllib.request.urlopen = patched_urlopen
+except ImportError:
+    pass
+
+# Run the original script
+sys.argv = {args}
+runpy.run_path(sys.argv[0], run_name='__main__')
+'''
+        # Write wrapper to temporary file
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix='.py', prefix='uachains_wrapper_')
+        with os.fdopen(fd, 'w') as f:
+            f.write(wrapper_script)
+        return ['python3', path]
+
+    def get_random_ua(self, category=None):
+        if category:
+            return random.choice(self.user_agents[category])
+        else:
+            all_uas = [ua for uas in self.user_agents.values() for ua in uas]
+            return random.choice(all_uas)
+
+    def wrap_command(self, command, args, user_agent):
+        """Wrap command with appropriate User-Agent modification"""
+        cmd_name = os.path.basename(command)
+       
+        if cmd_name in self.wrapped_commands:
+            return self.wrapped_commands[cmd_name](user_agent, args)
+       
+        # For unknown commands, try to detect if it's a Python script
+        if command.endswith('.py'):
+            return self.wrapped_commands['python'](user_agent, [command] + args)
+           
+        # For other commands, just pass through with environment variable
+        return [command] + args
+
+def main():
+    parser = argparse.ArgumentParser(description='UAChains - User-Agent Chaining Tool')
+    parser.add_argument('-ua', '--user-agent', type=int, choices=range(1, 11),
+                        help='User-Agent category (1-10)')
+    parser.add_argument('-l', '--list', action='store_true',
+                        help='List all User-Agent categories')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Show verbose output')
+    parser.add_argument('command', nargs='*', help='Command to execute')
+
+    args = parser.parse_args()
+    ua_chains = UAChains()
+
+    if args.list:
+        print("User-Agent Categories:")
+        print("1: Windows/Chrome")
+        print("2: Windows/Firefox")
+        print("3: MacOS/Safari")
+        print("4: Mobile/iOS")
+        print("5: Mobile/Android")
+        print("6: Bots/Crawlers")
+        print("7: Linux/Firefox")
+        print("8: Edge")
+        print("9: Opera")
+        print("10: Smart TV/Console")
+        sys.exit(0)
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    # Get User-Agent
+    user_agent = ua_chains.get_random_ua(args.user_agent)
+    if args.verbose:
+        print(f"[UAChains] Using User-Agent: {user_agent}")
+
+    # Set environment variable for non-wrapped commands
+    os.environ['UA_CHAINS_AGENT'] = user_agent
+
+    try:
+        # Wrap the command with appropriate User-Agent handling
+        wrapped_command = ua_chains.wrap_command(args.command[0], args.command[1:], user_agent)
+       
+        if args.verbose:
+            print(f"[UAChains] Executing: {' '.join(wrapped_command)}")
+       
+        # Execute the wrapped command
+        result = subprocess.run(wrapped_command)
+        sys.exit(result.returncode)
+    except Exception as e:
+        print(f"Error executing command: {e}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+
